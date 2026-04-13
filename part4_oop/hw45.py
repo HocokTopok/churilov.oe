@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 from part4_oop.interfaces import Cache, HasCache, Policy, Storage
 
@@ -38,7 +38,7 @@ class FIFOPolicy(Policy[K]):
             self._order.append(key)
 
     def get_key_to_evict(self) -> K | None:
-        if len(self._order) >= self.capacity:
+        if len(self._order) > self.capacity:
             return self._order[0]
         return None
 
@@ -65,7 +65,7 @@ class LRUPolicy(Policy[K]):
         self._order.append(key)
 
     def get_key_to_evict(self) -> K | None:
-        if len(self._order) >= self.capacity:
+        if len(self._order) > self.capacity:
             return self._order[0]
         return None
 
@@ -155,19 +155,19 @@ class MIPTCache(Cache[K, V]):
 
 class CachedProperty[V]:
     def __init__(self, func: Callable[..., V]) -> None:
-        self.func = func
+        self._func = func
 
-    def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> V:
+    def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> V | Self:
         if instance is None:
-            return self  # type: ignore[return-value]
+            return self
 
         cache: Cache[Any, V] = instance.cache
-        key = self.func.__name__
+        key = self._func.__name__
         value = cache.get(key)
 
         if value is not None:
             return value
 
-        result = self.func(instance)
+        result = self._func(instance)
         cache.set(key, result)
         return result
