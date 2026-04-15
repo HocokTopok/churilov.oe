@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any, ParamSpec, Protocol, TypeVar
 from urllib.request import urlopen
 
@@ -20,19 +21,73 @@ class CallableWithMeta(Protocol[P, R_co]):
 
 
 class BreakerError(Exception):
-    pass
+    def __init__(
+        self,
+        func_name: str,
+        block_time: datetime,
+    ):
+        self.func_name = func_name
+        self.block_time = block_time
+        super().__init__(TOO_MUCH)
 
 
 class CircuitBreaker:
     def __init__(
         self,
-        critical_count: int,
-        time_to_recover: int,
-        triggers_on: type[Exception],
-    ): ...
+        critical_count: int = 5,
+        time_to_recover: int = 30,
+        triggers_on: type[Exception] = Exception,
+    ):
+        errors: list[Exception] = []
+
+        if not isinstance(critical_count, int) or critical_count <= 0:
+            errors.append(ValueError(INVALID_CRITICAL_COUNT))
+
+        if not isinstance(time_to_recover, int) or time_to_recover <= 0:
+            errors.append(ValueError(INVALID_RECOVERY_TIME))
+
+        if errors:
+            raise ExceptionGroup(VALIDATIONS_FAILED, errors)
+
+        self.critical_count = critical_count
+        self.time_to_recover = time_to_recover
+        self.triggers_on = triggers_on
+        self.state: bool = True
+        self.fails: int = 0
+        self.shutdown_start: datetime = datetime.now(UTC)
 
     def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
-        raise NotImplementedError
+        def inner(*args: P.args, **kwargs: P.kwargs) -> R_co:
+            if not self.state:
+                current_time = datetime.now(UTC)
+                if current_time - self.shutdown_start >= timedelta(seconds = self.time_to_recover):
+                    self.state = True
+                    self.fails = 0
+
+            if not self.state:
+                func_name = f"{func.__module__}.{func.__name__}"
+                raise BreakerError(func_name, self.shutdown_start)
+
+            try:
+                res = func(*args, **kwargs)
+
+            except self.triggers_on as er:
+                self.fails += 1
+                if self.fails >= self.critical_count:
+                    self.state = False
+                    func_name = f"{func.__module__}.{func.__name__}"
+                    self.shutdown_start = datetime.now(UTC)
+                    raise BreakerError(func_name, self.shutdown_start) from er
+
+            except Exception:
+                self.fails = 0
+                raise
+
+            else:
+                self.fails = 0
+                return res
+
+        return inner
 
 
 circuit_breaker = CircuitBreaker(5, 30, Exception)
