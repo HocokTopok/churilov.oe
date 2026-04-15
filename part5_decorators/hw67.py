@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime, timedelta
+from functools import wraps
 from typing import Any, ParamSpec, Protocol, TypeVar
 from urllib.request import urlopen
 
@@ -57,30 +58,15 @@ class CircuitBreaker:
         self.shutdown_start: datetime = datetime.now(UTC)
 
     def __call__(self, func: CallableWithMeta[P, R_co]) -> CallableWithMeta[P, R_co]:
+        @wraps(func)
         def inner(*args: P.args, **kwargs: P.kwargs) -> R_co:
-            if not self.state:
-                current_time = datetime.now(UTC)
-                if current_time - self.shutdown_start >= timedelta(seconds = self.time_to_recover):
-                    self.state = True
-                    self.fails = 0
-
-            if not self.state:
-                func_name = f"{func.__module__}.{func.__name__}"
-                raise BreakerError(func_name, self.shutdown_start)
+            self.check_shutdown(func)
 
             try:
                 res = func(*args, **kwargs)
 
             except self.triggers_on as er:
-                self.fails += 1
-                if self.fails >= self.critical_count:
-                    self.state = False
-                    func_name = f"{func.__module__}.{func.__name__}"
-                    self.shutdown_start = datetime.now(UTC)
-                    raise BreakerError(func_name, self.shutdown_start) from er
-
-            except Exception:
-                self.fails = 0
+                self.handle_triggers_on(func, er)
                 raise
 
             else:
@@ -88,6 +74,27 @@ class CircuitBreaker:
                 return res
 
         return inner
+
+    def check_shutdown(self, func: CallableWithMeta[P, R_co]) -> None:
+        if not self.state:
+            current_time = datetime.now(UTC)
+
+            if current_time - self.shutdown_start >= timedelta(seconds=self.time_to_recover):
+                self.state = True
+                self.fails = 0
+
+            else:
+                func_name = f"{func.__module__}.{func.__name__}"
+                raise BreakerError(func_name, self.shutdown_start)
+
+    def handle_triggers_on(self, func: CallableWithMeta[P, R_co], error: Exception) -> None:
+        self.fails += 1
+        if self.fails >= self.critical_count:
+            self.state = False
+            func_name = f"{func.__module__}.{func.__name__}"
+            self.shutdown_start = datetime.now(UTC)
+            raise BreakerError(func_name, self.shutdown_start) from error
+        raise error
 
 
 circuit_breaker = CircuitBreaker(5, 30, Exception)
