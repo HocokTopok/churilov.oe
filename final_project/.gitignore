@@ -1,0 +1,7 @@
+config.yaml
+test.txt
+
+__pycache__/
+.pytest_cache/
+
+.coverage
