@@ -78,34 +78,37 @@ def handle_file_chunks(
     auto: bool
 ) -> None:
     
-    chunks = file_chunks(mode, value, path)
+    try:
+        chunks = file_chunks(mode, value, path)
 
-    prompt = ask_chunk_prompt()
+        prompt = ask_chunk_prompt()
 
-    print_start_processing()
+        print_start_processing()
 
-    for chunk in chunks:
-        message = [
-            {
-                ROLE_KEY: USER_ROLE,
-                CONTENT_KEY: f'{prompt}\n\n{chunk}'
-            }
-        ]
+        for chunk in chunks:
+            message = [
+                {
+                    ROLE_KEY: USER_ROLE,
+                    CONTENT_KEY: f'{prompt}\n\n{chunk}'
+                }
+            ]
 
-        try:
             client.ask_stream(message)
-        except KeyboardInterrupt:
-            print()
-            return
 
-        if not auto:
-            command = input('>>> ')
+            if not auto:
+                if chunk == chunks[-1]:
+                    continue
 
-            if command == EXIT_COMMAND:
-                return
+                command = input('>>> ')
 
-    print_finish_processing()
+                if command == EXIT_COMMAND:
+                    return
 
+        print_finish_processing()
+        
+    except KeyboardInterrupt:
+        print()
+        return
 
 def handle_ask(command: str, client: LLMClient, context: ContextManager) -> None:
     if not command:

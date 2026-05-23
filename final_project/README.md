@@ -22,7 +22,7 @@ GigaVibeMiptCode — консольный AI-ассистент с поддер�
 ## Структура проекта
 
 ```text
-project/
+final_project/
 ├── config.yaml (нужно самому добавить)
 ├── htmlcov/
 ├── src/
@@ -64,7 +64,7 @@ project/
 Перейдите в папку проекта:
 
 ```bash
-cd final_project/project
+cd final_project
 ```
 
 Установите зависимости:
@@ -73,7 +73,7 @@ cd final_project/project
 pip install openai pyyaml pytest pytest-cov mypy ruff types-PyYAML
 ```
 
-Создайте файл `config.yaml` в папке `final_project/project`:
+Создайте файл `config.yaml` в папке `final_project`:
 
 ```yaml
 api_host: http://localhost:11434/v1/
@@ -97,7 +97,7 @@ ollama serve
 ollama pull qwen2.5-coder:7b
 ```
 
-Запустите приложение из папки `final_project/project`:
+Запустите приложение из папки `final_project`:
 
 ```bash
 python -m src.main
