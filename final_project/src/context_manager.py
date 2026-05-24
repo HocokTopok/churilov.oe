@@ -41,7 +41,7 @@ class ContextManager:
 
 
     def delete_last(self) -> None:
-        self.messages.pop(0)
+        self.messages.pop()
 
 
     def get_messages(self) -> list[dict[str, str]]:
